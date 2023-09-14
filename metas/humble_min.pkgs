@@ -1,0 +1,74 @@
+build:
+    pkgs: [
+      # get Bison
+      "bison",
+      "bison-dev",
+
+      # get libssl
+      "libssl1.0.2",
+
+      # get openssl
+      "openssl",
+      "openssl-dev",
+
+      # get libstdc++ 
+      "libstdc++-dev",
+      "libstdc++6",
+
+      # get libc
+      "libc6",
+      "libc6-dev",
+      "libc6-extra-nss",
+      "linux-libc-headers-dev",
+      "libcidn1",
+
+      # get libcrypto
+      "libcrypto1.0.2",
+
+      # get acl 
+      "acl",
+      "acl-dbg",
+      "acl-dev",
+      "libacl1",
+
+      # get libattr
+      "libattr1",
+
+      #get python3
+      "libpython3.5m1.0",
+      "python3-dev"
+    ]
+    links: [
+      ["usr/lib/libpthreads.so", "usr/lib/libpthread.so"]
+    ]
+
+deploy:
+  pkgs: [
+    # get ssl
+    "libssl1.0.2",
+
+    # get openssl
+    "openssl",
+
+    # get libcrypto
+    "libcrypto1.0.2",
+
+    # get bison
+    "bison",
+
+    # get python 3.5
+    "libpython3.5m1.0",
+    "python3-core",
+
+    # get ACL 
+    "acl",
+    "libacl1",
+
+    # get libattr
+    "libattr1"
+  ]
+  links: [
+    # no deploy links needed
+  ]
+
+repo: "https://download.ni.com/ni-linux-rt/feeds/2022Q3/arm/main/cortexa9-vfpv3/Packages"

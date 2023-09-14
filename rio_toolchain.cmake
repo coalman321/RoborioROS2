@@ -1,5 +1,5 @@
 ##configuration
-set(YEAR 2022)
+set(YEAR 2023)
 
 # Set system definitions
 SET(CMAKE_SYSTEM_NAME Linux)
