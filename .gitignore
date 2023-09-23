@@ -1,5 +1,5 @@
 build
 install
 log
-extra_libs
+deploy_deps
 rclcpp_rio.tar

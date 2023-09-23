@@ -19,13 +19,14 @@ class Downloader(threading.Thread):
         self.queue = queue
         self.complete = False
 
-    def singleDownload(self, download_url: str, save_as: str, local_dir: os.PathLike):
+    @staticmethod
+    def singleDownload(download_url: str, save_as: str, local_dir: os.PathLike):
         # make sure next item is valid
         try:
             if not download_url or not local_dir or not save_as:
                 raise RuntimeError("Missing an argument to download")
 
-            absFileName = os.path.join(local_dir, "downloads", save_as)
+            absFileName = os.path.join(local_dir, save_as)
             urllib.request.urlretrieve(download_url, filename = absFileName)
             logging.info("Downloaded {} successfully as {}".format(download_url, absFileName))
             return True
@@ -62,6 +63,26 @@ class NIPackageDownloader():
         if(not os.path.exists(self.download_dir)):
             os.mkdir(self.download_dir)
 
+    def runPkgsData(self, data: dict, deploy_dir: os.PathLike):
+        # run the cross comp packages first
+        if(not os.path.exists(self.root)):
+            os.mkdir(self.root)
+
+        # download the root packages and make links
+        self.__downloadPackages__(data["build"]["pkgs"], self.root) 
+        self.__makeLinks__(data["build"]["links"], self.root)
+
+        # make sure the deploy_packages dir is clean
+        if os.path.exists(deploy_dir):
+            shutil.rmtree(deploy_dir)
+
+        os.mkdir(deploy_dir)
+        
+        # download the deploy packages and make any links
+        self.__downloadPackages__(data["deploy"]["pkgs"], deploy_dir) 
+        self.__makeLinks__(data["deploy"]["links"], deploy_dir)
+
+
     def __readPackageDef__(self, name: str, pkgFile: os.PathLike):
         with open(pkgFile) as packageFile:
             start = -1
@@ -73,35 +94,31 @@ class NIPackageDownloader():
                 if("Package: {}\n".format(name) == line):
                     start = num
                     parseData += line
-                    #print("discovered package def")
 
                 if(start >= 0 and "Priority:" in line):
                     data = yaml.safe_load(parseData)
                     return data 
 
-                #if("Package: {}\n".format(name) in line):
-                #        print("'" + line + "'")
-        
         logging.error("error finding package {} in file: {}".format(name, pkgFile))
         return {}
     
-    def makeLinks(self, links: list, localDir: str):
+    def __makeLinks__(self, links: list, localDir: str):
         for link in links:
             target = os.path.join(localDir, link[0])
             source = os.path.join(localDir, link[1])
             if(not (os.path.islink(source) or os.path.isfile(source))):
                 os.symlink(source, target)
     
-    def downloadPackages(self, packages: list):
+    def __downloadPackages__(self, packages: list, dest_dir: os.PathLike):
         # download & parse the index file
         index_file_path = os.path.join(self.download_dir, "Index")
-        Downloader().singleDownload(self.repo+"/Packages", "Index", self.download_dir)
+        Downloader.singleDownload(self.repo+"/Packages", "Index", self.download_dir)
 
         # pack the queue
         queue = Queue()
         for package_name in packages:
             data = self.__readPackageDef__(package_name, index_file_path)
-            package_url = self.repo + data["Filename"]
+            package_url = self.repo + "/" + data["Filename"]
             queue.put((package_url, package_name, self.download_dir))
 
         # Start downloads
@@ -119,9 +136,6 @@ class NIPackageDownloader():
                 complete = complete and downloader.isComplete()
 
             time.sleep(0.01)
-        
-        print("All files downloaded, unarchiving")
-        time.sleep(0.5)
 
         # now unarchive the packages
         for package_name in packages:
@@ -137,45 +151,7 @@ class NIPackageDownloader():
                 
                 # rip the data.tar archive open and dump it into the local dir
                 data_tar_file = os.path.join(self.download_dir, "data.tar.xz")
-                shutil.unpack_archive(data_tar_file, self.root, "gztar")
-
-                print(f"Unarchived {package_name} successfully")
+                shutil.unpack_archive(data_tar_file, dest_dir, "gztar")
 
             except Exception as e:
                 logging.error(f"error unarchiving {package_name} : {e}")
-
-
-if __name__ == "__main__":
-    # Common vars used in path
-    USER_HOME = os.path.expanduser('~')
-    YEAR = str(datetime.date(datetime.now()).year)
-    ARM_PREFIX = "arm-frc{}-linux-gnueabi".format(YEAR)
-    CROSS_ROOT = os.path.join(USER_HOME, "wpilib", YEAR, "roborio", ARM_PREFIX)
-    CWD = os.getcwd()
-
-    pkg_dnldr = NIPackageDownloader(CROSS_ROOT, "")
-
-    # download deps into cross root
-    print("Downloading CC deps")
-    buildDepsDir = CROSS_ROOT
-    if(not os.path.exists(buildDepsDir)):
-        os.mkdir(buildDepsDir)
-
-    pkg_dnldr.downloadPackages(buildDeps["files"], buildDepsDir)
-    pkg_dnldr.makeLinks(buildDeps["links"], buildDepsDir)
-
-    print("All CC deps downloaded")
-
-    # download deps for install
-    print("Downloading deploy deps")
-    deployDepDir = os.path.join(CWD, "extra_libs")
-    if(not os.path.exists(deployDepDir)):
-        os.mkdir(deployDepDir)
-    else:
-        shutil.rmtree(deployDepDir)
-        os.mkdir(deployDepDir)
-
-    pkg_dnldr.downloadPackages(deployDeps["files"], deployDepDir)
-    pkg_dnldr.makeLinks(deployDeps["links"], deployDepDir)
-    print("All deploy deps downloaded")
-
